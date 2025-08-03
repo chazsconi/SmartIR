@@ -77,7 +77,7 @@ class BroadlinkController(AbstractController):
         """Send a command."""
         commands = []
 
-        if not isinstance(command, list): 
+        if not isinstance(command, list):
             command = [command]
 
         for _command in command:
@@ -145,7 +145,7 @@ class MQTTController(AbstractController):
         """Send a command."""
         service_data = {
             'topic': self._controller_data,
-            'payload': command
+            'payload': '{"ir_code_to_send":"'+command+'"}'
         }
 
         await self.hass.services.async_call(
@@ -177,7 +177,7 @@ class ESPHomeController(AbstractController):
         if encoding not in ESPHOME_COMMANDS_ENCODING:
             raise Exception("The encoding is not supported "
                             "by the ESPHome controller.")
-    
+
     async def send(self, command):
         """Send a command."""
         service_data = {'command':  json.loads(command)}
