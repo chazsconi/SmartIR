@@ -36,7 +36,7 @@ CONF_POWER_SENSOR_RESTORE_STATE = 'power_sensor_restore_state'
 SUPPORT_FLAGS = (
     ClimateEntityFeature.TURN_OFF |
     ClimateEntityFeature.TURN_ON |
-    ClimateEntityFeature.TARGET_TEMPERATURE | 
+    ClimateEntityFeature.TARGET_TEMPERATURE |
     ClimateEntityFeature.FAN_MODE
 )
 
@@ -133,6 +133,7 @@ class SmartIRClimate(ClimateEntity, RestoreEntity):
 
         self._current_temperature = None
         self._current_humidity = None
+        self._current_power_sensor_state = None
 
         self._unit = hass.config.units.temperature_unit
         
@@ -368,13 +369,28 @@ class SmartIRClimate(ClimateEntity, RestoreEntity):
                 swing_mode = self._current_swing_mode
                 target_temperature = '{0:g}'.format(self._target_temperature)
 
-                if operation_mode.lower() == HVACMode.OFF:
+                if operation_mode.lower() == HVACMode.OFF and 'off' in self._commands:
                     await self._controller.send(self._commands['off'])
                     return
 
                 if 'on' in self._commands:
                     await self._controller.send(self._commands['on'])
                     await asyncio.sleep(self._delay)
+
+                if 'toggle' in self._commands:
+                    if operation_mode.lower() == HVACMode.OFF:
+                        if self._current_power_sensor_state == STATE_ON:
+                            _LOGGER.warn("send_command 'toggle' to turn off")
+                            await self._controller.send(self._commands['toggle'])
+                            return
+                        else:
+                            _LOGGER.warn("Not sending 'toggle' as already off")
+                            return
+
+                    elif self._current_power_sensor_state == STATE_OFF:
+                        _LOGGER.warn("send_command 'toggle' to turn on before sending mode/fan/swing/temp command")
+                        await self._controller.send(self._commands['toggle'])
+                        await asyncio.sleep(self._delay)
 
                 if self._support_swing == True:
                     await self._controller.send(
@@ -420,6 +436,7 @@ class SmartIRClimate(ClimateEntity, RestoreEntity):
         if old_state is not None and new_state.state == old_state.state:
             return
 
+        self._current_power_sensor_state = new_state.state
         if new_state.state == STATE_ON and self._hvac_mode == HVACMode.OFF:
             self._on_by_remote = True
             if self._power_sensor_restore_state == True and self._last_on_operation is not None:
